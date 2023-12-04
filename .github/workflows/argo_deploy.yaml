@@ -1,0 +1,205 @@
+name: argocli-test reusable workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      customer: 
+        description: 'Customer to trigger workflow for'
+        required: true
+        type: string
+      environment:
+        description: 'Environment to trigger workflow for'
+        required: true
+        type: string
+      deployment-environment:
+        required: false
+        type: string
+        default: dev
+        description: dev deployment will deploy images from dsc-cicd and prod from dsc-release repos
+    
+    secrets:    
+      aws-access-key:
+        description: Authentication token to connect to your Sonarqube project
+        required: true
+      aws-secrete-access-key:
+        description: Authentication token to connect to your Sonarqube project
+        required: true
+      aws-region:
+        description: AWS region
+        required: true
+      argo-root-password:
+        description: ARGO login password 
+        required: true
+
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.aws-access-key }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.aws-secrete-access-key }}
+  ARGO_LOGIN_PASSWORD: ${{secrets.argo-root-password  }}
+  AWS_DEFAULT_REGION: ${{ secrets.aws-region }}
+  CUSTOMER: ${{ inputs.customer }}
+  ENVIRONMENT: ${{ inputs.environment }}
+  DEPLOYMENT_ENV: ${{ inputs.deployment-environment }}
+  
+
+jobs:
+   
+    argo-cd:
+      runs-on: ubuntu-latest
+      steps:    
+        - name: Configure AWS Credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ env.AWS_DEFAULT_REGION }}
+            
+        - name: Setup kubectl
+          uses: azure/setup-kubectl@v3.0
+          with:
+            version: v1.22.9
+            
+        - name: Update Kubeconfig
+          run: |
+            #aws eks update-kubeconfig --name ${{ inputs.cluster-name }}  --region ${{ env.AWS_DEFAULT_REGION }}
+            aws eks update-kubeconfig --name st-next-cluster --region ${{ env.AWS_DEFAULT_REGION }}   --role arn:aws:iam::610058424102:role/st-next-cluster-eks-admins-acces
+
+
+        - name: Argo Install
+          if: always()
+          run: |
+            wget https://github.com/argoproj/argo-cd/releases/download/v2.9.0/argocd-linux-amd64 -O argocd
+            sudo chmod 777 argocd
+            sudo cp argocd /bin/argocd
+            ls -la
+            argocd login argocd.us-east-1-dicom-next.0a7d12e510013e29.hsp.philips.com --username admin --password ${{ env.ARGO_LOGIN_PASSWORD }} --skip-test-tls --grpc-web
+            
+        - name: list app ${{ env.CUSTOMER }}-${{ env.ENVIRONMENT }}
+          run:  argocd app list 
+          
+        - name: argo root app creation ${{ env.CUSTOMER }}-${{ env.ENVIRONMENT }}
+          run: |
+            kubectl get pods
+            kubectl apply -f flask-mongodb-app/argoappliations/cicd/argo-$CUSTOMER-$ENVIRONMENT-application.yaml -n argocd
+        
+        - name: argo sync for ${{ env.CUSTOMER }}-${{ env.ENVIRONMENT }} preview
+          run: |
+            #argocd app sync argo-$CUSTOMER-$ENVIRONMENT-apps
+          
+            RED='\033[0;31m'
+            GREEN='\033[1;32m'
+            NC='\033[0m' # No Color
+            # Set the number of retries
+            retries=10
+            
+            # Run the command
+            command="argocd app sync dsc-preview-parent-$CUSTOMER-$ENVIRONMENT-apps --grpc-web --timeout 360"
+            $command
+            # Check the exit status
+            exit_status=$?
+
+            echo -e "${RED}SYNC APPS RETRY COUNT: $retries"
+
+            # If the exit status is not 0, retry the command
+            while [ $exit_status -ne 0 ] && [ $retries -gt 0 ]; do
+              echo -e "${RED} ----- Retrying iteration $retries command $command... ----- ${NC} "
+              $command
+              exit_status=$?
+              retries=$((retries-1))
+            done
+
+            # If the exit status is still not 0 after all retries, exit the script with an error
+            if [ $exit_status -ne 0 ]; then
+              echo -e "Command $command failed after $retries retries."
+              exit 1
+            else
+              echo -e "Command $command ${GREEN}succeeded. ${NC} "
+            fi
+            
+        - name: argo app wait for ${{ env.CUSTOMER }}-${{ env.ENVIRONMENT }}-preview sync status
+          id: eks-health-check
+          timeout-minutes: 15
+          run: |
+            RED='\033[0;31m'
+            GREEN='\033[1;32m'
+            NC='\033[0m' # No Color
+            # Set the number of retries
+            RETRIES=7
+            # Set the interval between retries
+            INTERVAL=121
+            # Set the command to run
+            COMMAND="argocd app wait dsc-preview-parent-$CUSTOMER-$ENVIRONMENT-apps --sync --grpc-web --timeout 360"
+
+            # Start the retry loop
+            for i in $(seq 1 $RETRIES); do
+              # Run the command
+              OUTPUT=$($COMMAND)
+              echo -e "${RED}<--- COMMAND OUTPUT--->${NC}:\n $OUTPUT\n${RED}<------->${NC}\n"
+
+              # If the command succeeds and the output contains the string 'Name: dsc-preview-parent-$CUSTOMER-$ENVIRONMENT-apps|Health Status: Healthy', then exit the loop
+              if [[ $? -eq 0 && $(echo $OUTPUT | grep -P "Name:\s*dsc-preview-parent-$CUSTOMER-$ENVIRONMENT-apps|Health Status:\s*Healthy") ]]; then
+                echo -e "Preview APP Sync ${GREEN}SUCCESS ${NC}" 
+                echo "eks-health-check-status=SUCCESS" >> $GITHUB_ENV
+                exit 0
+              fi
+
+              # Sleep for the interval between retries
+              sleep $INTERVAL
+
+            done
+
+            # If the loop reaches this point, then the command failed to find the string 'Health Status:\s*Healthy'
+            echo -e "Preview APP Sync ${RED} FAILED ${NC}"
+            echo "eks-health-check-status=FAILED" >> $GITHUB_ENV
+            #exit 1
+            
+          continue-on-error: true
+
+        # - name: argo sync child apps for ${{ env.CUSTOMER }}-${{ env.ENVIRONMENT }}-preview 
+        #   id: sync-child-apps-preview
+        #   timeout-minutes: 15
+        #   run: |
+        #     RED='\033[0;31m'
+        #     GREEN='\033[1;32m'
+        #     NC='\033[0m' # No Color
+        #     # Set the number of retries
+        #     RETRIES=7
+        #     # Set the interval between retries
+        #     INTERVAL=121
+        #     # Set the command to run
+        #     # Get a list of all applications
+        #     ARGO_CHILD_APPS=$(argocd app list -o name | grep preview)
+
+        #     # Loop through the list and sync each app
+        #     for APP in $ARGO_CHILD_APPS; do
+        #       argocd app sync $APP
+        #     done
+
+        #   continue-on-error: true        
+
+        - name: if argo sync failed - delete ${{ env.CUSTOMER }}-${{ env.ENVIRONMENT }} preview environment 
+          #if: ${{ env.eks-health-check-status == 'SUCCESS' }}
+          id: delete-preview-env
+          run: |
+            RED='\033[0;31m'
+            GREEN='\033[1;32m'
+            NC='\033[0m' # No Color
+
+            if [[ "${{ env.eks-health-check-status }}" == "SUCCESS" ]]; then
+              echo -e "EKS Health Check ${GREEN} PASSED ${NC}with app sync status is ${{ env.eks-health-check-status }}"
+            elif [[ "${{ env.eks-health-check-status }}" == "FAILED" ]]; then
+              echo -e "Cleaninig UP, EKS Health Check ${RED}FAILED ${NC}with app sync status is ${{ env.eks-health-check-status }} ${NC}"
+              argocd app delete dsc-preview-parent-$CUSTOMER-$ENVIRONMENT-apps -y
+            fi
+    
+            
+  # # Todo: Examine the timeout behaviour in case of success and failure. Handle it via the workflow.          
+  #       - name: argo app wait for cicd sync status
+  #         if: ${{env.finalTestStatus}} == 'PASS'
+  #         timeout-minutes: 15
+  #         run: argocd app wait -l argocd.argoproj.io/instance=dsc-parent-$CUSTOMER-$ENVIRONMENT-apps
+          
+  # Todo: Implement the notification feature to send individual app level notifications in case of success / failures
+  # Test and enhance the workflow to check status of deployments for various failure scenarios
+  # Perform rollback the deployment if EKS deployment fails
+  # Add analysis templates to the argo rollouts to verify deployments before a complete rollout

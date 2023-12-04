@@ -46,7 +46,8 @@ jobs:
       - name: Build
         uses: docker/build-push-action@v4
         with:
-          context: ./app/
+          ### provide the docker file path 
+          context: ./DOCKERFILE_PATH/
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{secrets.DOCKERHUB_USERNAME}}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
@@ -105,3 +106,21 @@ jobs:
   #       token=$(curl -sk -L -X POST ${ARGOCD_SERVER}/api/v1/session  -d $'{"username":"'$ARGO_LOGIN_USERNAME'","password": "'$ARGO_LOGIN_PASSWORD'"}'|jq -r .token)
   #       SYNC_STATUS=$(curl -s -v -k -L -H "Authorization: Bearer $token" "${ARGOCD_SERVER}/api/v1/applications/${ARGOCD_APP_NAME}"| jq -r '.status.sync.status')                                        
   #       echo "Sync status of $ARGOCD_APP_NAME: $SYNC_STATUS"
+
+
+
+  argodeploy-cd:
+    
+    name: argo  application deploy
+    uses: hari1990javvaji/eks-mongo-crud-flask/.github/workflows/argo_deploy.yml@master
+    with:
+      customer: ${{ inputs.customer }} 
+      environment: ${{ inputs.environment }} 
+      deployment-environment: ${{ inputs.deployment-environment }}
+      
+    secrets:  
+      aws-access-key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secrete-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+      argo-root-password: ${{ secrets.ARGO_LOGIN_PASSWORD }}
+    
