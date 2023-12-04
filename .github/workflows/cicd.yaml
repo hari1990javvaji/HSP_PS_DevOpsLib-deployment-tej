@@ -5,10 +5,10 @@ name: CI
 # Controls when the workflow will run
 on:
   #Triggers the workflow on push or pull request events but only for the "main" branch
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+  # push:
+  #   branches: [ "master" ]
+  # pull_request:
+  #   branches: [ "master" ]
 
   # workflow_dispatch:
   #   inputs:
@@ -17,6 +17,27 @@ on:
   #       default: "Helm"
 
   #workflow_dispatch: 
+
+   workflow_dispatch: 
+    inputs:
+      customer:
+        description: 'Customer name (minimum 2 characters and maximum 6 characters)'
+        required: true
+      environment:
+        description: 'Customer environment name (minimum 2 characters and maximum 6 characters)'
+        required: true
+      region:
+        description: 'Customer region us-east-1 (default), eu-west-1'
+        required: false
+        default: us-east-1
+        type: string        
+      deployment-environment:
+        description: 'Deployment Environment'
+        type: choice
+        required: false
+        options:
+          - dev
+          - prod
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
