@@ -1,0 +1,27 @@
+# Default values for greetapp.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+greetapp:
+  replicaCount: 1
+  image:
+    repository: docker.na1.hsdp.io/devopslib
+    tag: "1"
+    pullPolicy: IfNotPresent
+    name: docker.na1.hsdp.io/devopslib/greetuser:1
+  service:
+    type: NodePort
+    port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+
+
+imageCredentials:
+  registry: docker.na1.hsdp.io
+  username: hjavvaji
+  password: hariK@0622
+  email: hkishore42@gmail.com

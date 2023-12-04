@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "greetapp.fullname" . }}
+  labels:
+    {{- include "greetapp.labels" . | nindent 4 }}
+spec:
+
+  replicas: {{ .Values.greetapp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "greetapp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "greetapp.selectorLabels" . | nindent 8 }}
+    spec:
+      imagePullSecrets:
+      - name: myregistryKey
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            allowPrivilegeEscalation: false
+          image: "{{ .Values.greetapp.image.repository }}:{{ .Values.greetapp.image.tag }}"
+          imagePullPolicy: {{ .Values.greetapp.image.pullPolicy }}
+          ports:
+            -  containerPort: {{ .Values.greetapp.service.port }}
+          resources:
+{{- toYaml .Values.greetapp.resources | nindent 12 }}
+  
+ 
