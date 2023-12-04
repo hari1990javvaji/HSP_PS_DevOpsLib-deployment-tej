@@ -25,7 +25,7 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     name: docker-image-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository_owner == 'hari1990javvaji'
+    # if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository_owner == 'hari1990javvaji'
     env:
       IMAGE_NAME: greetapp
       IMAGE_TAG: ${{ github.run_number }} # $GITHUB_RUN_NUMBER
@@ -55,7 +55,7 @@ jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     needs: image-build-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository_owner == 'hari1990javvaji'
+    # if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository_owner == 'hari1990javvaji'
     name: Deploy-to-staging
     permissions:
       contents: write
