@@ -1,11 +1,12 @@
 name: CI-BuildTrigger
 
 on:
-  push:
-    branches:
-    - master
-    - '*RELEASE*'
-    - '*UPDATE*'
+  # push:
+  #   branches:
+  #   - master
+  #   - '*RELEASE*'
+  #   - '*UPDATE*'
+    workflow_dispatch
 
 jobs:
   CI-BuildTrigger:

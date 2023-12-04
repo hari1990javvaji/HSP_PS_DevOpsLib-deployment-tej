@@ -1,14 +1,14 @@
 name: NIGHTLY-BuildTrigger
 
 on:
-  schedule:
-    # * is a special character in YAML so you have to quote this string
-    # Below job is scheduled once in a year on Jan 1st. Please update as per your convienience
-    # Cron Syntax to change 'MINUTE HOUR DAYOFMONTH MONTH DAYOFWEEK'
-    # If you want to run everyday at 8:30 PM use '30 20 * * *' (Timings are in UTC, please convert to your time zone accordingly)
-    #Few examples can be found here https://crontab.guru/examples.html (Ref link picked from https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows)
-    - cron:  '30 14 * * 1-5'
-
+  # schedule:
+  #   # * is a special character in YAML so you have to quote this string
+  #   # Below job is scheduled once in a year on Jan 1st. Please update as per your convienience
+  #   # Cron Syntax to change 'MINUTE HOUR DAYOFMONTH MONTH DAYOFWEEK'
+  #   # If you want to run everyday at 8:30 PM use '30 20 * * *' (Timings are in UTC, please convert to your time zone accordingly)
+  #   #Few examples can be found here https://crontab.guru/examples.html (Ref link picked from https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows)
+  #   - cron:  '30 14 * * 1-5'
+    workflow_dispatch
 jobs:
   NIGHTLY-BuildTrigger:
     uses: philips-internal/HSP_PS_cicd_templates/.github/workflows/nightly-build-trigger-template.yml@master
