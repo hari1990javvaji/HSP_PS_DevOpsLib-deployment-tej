@@ -1,0 +1,6 @@
+{
+	"randomNum_host":"https://randomnumber-devops-cicd-1000.cloud.pcftest.com",
+	"greet_host": "https://greetuser-devops-cicd-1000.cloud.pcftest.com",
+	"enable_proxy": false,
+	"proxy": "http://apac.zscaler.philips.com:9480"
+}

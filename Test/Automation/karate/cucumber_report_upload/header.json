@@ -1,0 +1,10 @@
+{
+  "tcType": "TestCase Type",
+  "changedby": "Owner",
+  "title":"TestCase Name",
+  "testRunStatus":"TestCase Status",
+  "uniqueId": "Unique ID",
+  "tcId": "TestCase ID",
+  "tcResultLog": "Execution Log",
+  "executionTime": "Execution Time"
+}

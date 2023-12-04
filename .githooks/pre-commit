@@ -1,0 +1,13 @@
+#!/bin/sh
+exec < /dev/tty
+read -p "****IMP:   HAVE YOUR CODE FOR GIT-SECRETS ? (Y/N)? " answer
+case ${answer:0:1} in
+    y|Y )
+        echo "      Pelase ensure that the number of secrets in source code and testcode is <= the values on KPI dashboard"
+		exit 0 
+    ;;
+    * )
+        echo "      Please scan the code before committing"
+		exit 1 
+    ;;
+esac

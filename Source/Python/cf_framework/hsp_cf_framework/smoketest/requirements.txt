@@ -1,0 +1,9 @@
+requests
+jmespath
+logging
+datetime
+pytz
+jsonpath_rw_ext
+hvac
+pathlib
+tabulate

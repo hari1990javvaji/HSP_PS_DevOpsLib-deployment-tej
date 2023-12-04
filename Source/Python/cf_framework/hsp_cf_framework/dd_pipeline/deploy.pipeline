@@ -1,0 +1,79 @@
+def FAILED_STAGE
+pipeline {
+
+    agent {label "docker_host"}
+    parameters {
+        string(description: 'Enter BITBUCKET Branch', name: 'BRANCH')
+		string(description: 'Enter CF Username', name: 'CF_USERNAME')
+		password(description: 'Enter CF Password', name: 'CF_PASSWORD')
+		string(description: 'Enter CF Org Name', name: 'CF_ORG')
+		string(description: 'Enter CF Space Name', name: 'CF_SPACE')		
+		string(description: 'Enter CF Api host url Example: api.cloud.pcftest.com', name: 'CF_API_HOST')
+		string(description: 'Enter CF Login Host url Example: login.cloud.pcftest.com', name: 'CF_LOGIN_HOST')
+        choice(choices: ['True', 'False'],
+        description: 'Set to TRUE if deployment in Engineering CI Space. For ClientTest/Prod Deployment, should be FALSE', name: 'DEPLOY_IN_CICD_ENV')
+	  }
+
+    environment {
+		CF_USERNAME = "${params.CF_USERNAME}"
+		CF_PASSWORD = "${params.CF_PASSWORD}"
+		CF_ORG = "${params.CF_ORG}"
+		CF_SPACE = "${params.CF_SPACE}"
+		CF_VAULT_SERVICE = "${params.CF_VAULT_SERVICE}"
+		DOMAIN = "${params.DOMAIN}"
+		CF_API_HOST = "${params.CF_API_HOST}"
+		CF_LOGIN_HOST = "${params.CF_LOGIN_HOST}"
+		DOCKER_REGISTRY = "docker.na1.hsdp.io"
+		DOCKER_NAMESPACE = "2net-services"
+		DOCKER_IMAGE = "2net-phc"
+		DOCKER_IMAGE_TAG = "${params.DOCKER_IMAGE_TAG}"
+		PLATFORM_SERVICE_NAME = "${params.PLATFORM_SERVICE_NAME}"
+		LOG_SERVICE_NAME = "${params.LOG_SERVICE_NAME}"
+		LOG_DRAIN_URL = "${params.LOG_DRAIN_URL}"
+		DEPLOY_IN_CICD_ENV = "${params.DEPLOY_IN_CICD_ENV}"
+    }
+    stages {		
+		stage ('Deploy Preparation') {
+        steps {
+        script{FAILED_STAGE=env.STAGE_NAME}
+            wrap([$class: 'MaskPasswordsBuildWrapper', varMaskRegexes: [[regex: 'CF_PASSWORD']]]){
+            sh '''
+               cd ${WORKSPACE}
+               sudo docker login docker.na1.hsdp.io -u ${CF_USERNAME} -p ${CF_PASSWORD}
+               
+               sudo docker stop 2netphc_dev|true
+			   sudo docker rm 2netphc_dev|true
+               
+               sudo docker run -dti -v ${WORKSPACE}:/home/jenkins -v /var/run/docker.sock:/var/run/docker.sock --name 2netphc_dev ${DOCKER_REGISTRY}/eng-autodeploy_system_team/hsdp_ci_2net:v2
+            '''
+ 			}            
+          }
+        }
+
+		stage ('Deploy') {
+            steps {
+                script{FAILED_STAGE=env.STAGE_NAME}
+                wrap([$class: 'MaskPasswordsBuildWrapper', varMaskRegexes: [[regex: 'CF_PASSWORD']]]) {
+                sh '''
+                if [ $DEPLOY_IN_CICD_ENV = "False" ] || [ -z "$DEPLOY_IN_CICD_ENV" ]; then
+                  sudo docker exec  --env HTTP_PROXY='' --env HTTPS_PROXY='' --env http_proxy='' --env https_proxy='' 2netphc_dev python /home/jenkins/auto_deploy.py ${CF_USERNAME} ${CF_PASSWORD} ${CF_ORG} ${CF_SPACE} ${CF_VAULT_SERVICE} ${DOMAIN} ${CF_API_HOST} ${CF_LOGIN_HOST} ${DOCKER_REGISTRY} ${DOCKER_NAMESPACE} ${DOCKER_IMAGE} ${DOCKER_IMAGE_TAG} ${PLATFORM_SERVICE_NAME} ${LOG_SERVICE_NAME} ${LOG_DRAIN_URL}
+                else
+                  sudo docker exec  --env HTTP_PROXY='http://185.46.212.97:9480' --env HTTPS_PROXY='http://185.46.212.97:9480' --env http_proxy='http://185.46.212.97:9480' --env https_proxy='http://185.46.212.97:9480' 2netphc_dev python /home/jenkins/auto_deploy.py ${CF_USERNAME} ${CF_PASSWORD} ${CF_ORG} ${CF_SPACE} ${CF_VAULT_SERVICE} ${DOMAIN} ${CF_API_HOST} ${CF_LOGIN_HOST} ${DOCKER_REGISTRY} ${DOCKER_NAMESPACE} ${DOCKER_IMAGE} ${DOCKER_IMAGE_TAG} ${PLATFORM_SERVICE_NAME} ${LOG_SERVICE_NAME} ${LOG_DRAIN_URL}
+                fi'''
+                }
+			}
+		}
+	}
+    post {
+		always {
+			emailext attachLog: true, body: '''$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:
+			Check attached build log and check console output at $BUILD_URL to view the results.''', recipientProviders: [requestor()], subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'tejeswara.rao.kottapalli@philips.com'
+		}
+        failure {
+            echo "JOB FAILED IN STAGE: ${FAILED_STAGE}"
+        }		
+		cleanup {
+			cleanWs()
+		}
+	}
+}

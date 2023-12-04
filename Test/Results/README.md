@@ -1,0 +1,1 @@
+*** As part of CICD execution, results will be stored in this folder for the reference. Results will not be checked into the TFS repository.

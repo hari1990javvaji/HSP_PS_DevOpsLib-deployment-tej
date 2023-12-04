@@ -1,0 +1,321 @@
+#!/usr/bin/env groovy
+
+pipeline {
+    parameters {
+        string(name: 'PSNAME', defaultValue: 'DevOpsLib', description: 'Platform Service Name')
+        string(name: 'BRANCH', defaultValue: 'master', description: ' Branch Name')
+        string(name: 'DEV_TYPE', defaultValue: 'JAVA', description: 'Java, NodejsUI, Nodejs, Python')
+        string(name: 'TEST_TYPE', defaultValue: 'KARATE', description: 'KARATE, SOAPUI, NODEJS')
+        string(name: 'BUILD_TYPE', defaultValue: '', description: 'Build Type: GATED, DAY, NIGHTLY, RELEASE, UPDATE')
+        string(name: 'BUILD_NUM', defaultValue: '', description: 'Build Number from TFS Build')
+        string(name: 'BUILD_NAME', defaultValue: '', description: 'Build Name from TFS Build')
+        string(name: 'COMMIT_ID', defaultValue: 'COMMIT_ID', description: 'COMMIT_ID from TFS Build in case of GATED')      
+        booleanParam(defaultValue: false, description: 'Only on RELEASE and UPDATE branches', name: 'CREATE_RELEASE_VERSION')
+        booleanParam(defaultValue: true, description: '', name: 'BUILD')
+        booleanParam(defaultValue: true, description: '', name: 'DEPLOY')
+        booleanParam(defaultValue: false, description: '', name: 'SMOKETEST')
+        booleanParam(defaultValue: false, description: '', name: 'DYNAMICTEST')
+        booleanParam(defaultValue: true, description: '', name: 'FULLTEST')
+        booleanParam(defaultValue: false, description: '', name: 'PERFORMTEST')
+        booleanParam(defaultValue: false, description: '', name: 'SECURITYTEST')
+        booleanParam(defaultValue: false, description: '', name: 'FAILED')
+        booleanParam(defaultValue: false, description: '', name: 'INPROGRESS')
+        booleanParam(defaultValue: false, description: '', name: 'ACTIVE')
+    }
+    environment {
+        GIT_URL                  = "${TFS_GIT_URL}/${PSNAME}"
+        TFS_ROBO_REPO            = "${TFS_GIT_URL}/${GIT_ROBOCI}"
+        BITBUCKET_REPO           = "${BITBUCKET_URL}/${PSNAME}"
+        RoboCI_BRANCH            = "master"
+        TEST_HOST_NAME           = "i2mtest11"
+        CF_SPACE                 = "${PSNAME}"
+        VAULT_HOST               = "vproxy.us-east.philips-healthsuite.com"
+        VAULT_SERVICE_INSTANCE   = "devopslib_vault"
+        VAULT_SERVICE_KEY        = "devopslib_vault_key"
+        VAULT_PATH               = "/fresh/deployment/cicd"
+        DOCKER_REPO_URL          = "docker.na1.hsdp.io"
+        CI                       = "true"
+        EMAIL_GROUP              = "${TA_MAIL}"
+        ARTIFACTIORY_URL         = "artifactory-ehv.ta.philips.com"
+        ARTIFACTORY_IP           = "130.139.138.30"
+    }
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    agent { 
+        label 'hsdp_ci_ciforci'
+    }
+    stages {
+        stage ('CI_FOR_CI') {
+            when {
+                 expression { BUILD_TYPE ==~ /(GATED)/ }
+            }
+            steps {
+                InitialiseBuild()
+                sh " echo CI for CI "               
+            }
+        }
+
+        stage('BUILD') {
+            agent { 
+                label 'hsdp_ci_devopslib'
+            }
+            when {
+                expression { params.BUILD == true }
+            }
+            steps {
+                InitialiseBuild()
+                script {
+                    sh "git config --global credential.helper store "
+                    if (env.BUILD_TYPE ==~ /(GATED)/) {
+                        checkout([$class: 'GitSCM', branches: [[name: "${params.COMMIT_ID}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360]], submoduleCfg: [], userRemoteConfigs: [[refspec: '+refs/pull/*:refs/remotes/origin/pr/*', credentialsId: 'GH_HSP_TA_JENKINS', url: "https://github.com/philips-internal/HSP_PS_DevOpsLib.git"]]])
+                    } else {
+                        checkout([$class: 'GitSCM', branches: [[name: "*/${env.BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360]], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'GH_HSP_TA_JENKINS', url: "https://github.com/philips-internal/HSP_PS_DevOpsLib.git"]]])
+                    }
+                } 
+                checkout([$class: 'GitSCM', branches: [[name: "*/${env.RoboCI_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'ROBOCI']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'TFS_CRED', url: "https://github.com/philips-internal/HSP_PS_RoboCI.git"]]])
+                wrap([$class: 'MaskPasswordsBuildWrapper']) {
+                    withCredentials([string(credentialsId: 'HSDP_SONARQUBE_TOKEN_NEW', variable: 'HSDP_SONARQUBE_TOKEN_NEW'),
+                                     usernamePassword(credentialsId: 'TFS_CRED', passwordVariable: 'TFS_TOKEN_PWD', usernameVariable: 'TFS_TOKEN_USN'),
+                                     usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN'),
+                                     string(credentialsId: 'DEVOPSLIB_SECRET_ID', variable: 'DEVOPSLIB_SECRET_ID')]) {
+                        script {
+                            try {
+                                sh " chmod -R 755 ${WORKSPACE} "
+                                sh " ${WORKSPACE}/CICD/build.sh "
+                                sh ' DEV_TYPE="python" && ${WORKSPACE}/CICD/build.sh '
+                                if (env.BUILD_TYPE ==~ /(DAY|RELEASE|UPDATE)/) {
+                                    sh " ${WORKSPACE}/CICD/publish2artifactory.sh ${BRANCH} "
+                                }
+                            } finally {
+                                warnings canResolveRelativePaths: false, categoriesPattern: '', consoleParsers: [[parserName: 'Java Compiler (javac)']], defaultEncoding: '', excludePattern: 'Cobertura\\sreport\\snot\\sfound.*,You\\sare\\snot\\susing\\sthe\\slatest\\sJaCoCo\\sbinary.*,Coverage.*,Duplicated Lines.*,Major Issues.*,Minor Issues.*,Blocker Issues.*,Critical Issues.*', failedNewAll: '0', failedTotalAll: '1000', healthy: '', includePattern: '', messagesPattern: 'Cobertura\\sreport\\snot\\sfound.*,You\\sare\\snot\\susing\\sthe\\slatest\\sJaCoCo\\sbinary.*,Coverage.*,Duplicated Lines.*,Major Issues.*,Minor Issues.*,Blocker Issues.*,Critical Issues.*', unHealthy: '', useDeltaValues: true
+                                if (env.BUILD_TYPE ==~ /(RELEASE|UPDATE)/) {
+                                    build job: 'MALWARE_SCAN', wait: true, parameters: 
+                                        [[$class: 'StringParameterValue', name: 'BUILD_NUM', value: "${BUILD_NUM}"],
+                                         [$class: 'StringParameterValue', name: 'BUILD_NAME', value: "${BUILD_NAME}"],
+                                         [$class: 'StringParameterValue', name: 'PSNAME', value: "${PSNAME}"]]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage ('DEPLOY PY2') {
+            when {
+                expression { BUILD_TYPE ==~ /(DAY|NIGHTLY|RELEASE|UPDATE)/ && params.DEPLOY == true }
+            }
+            steps {
+                InitialiseBuild()
+                wrap([$class: 'MaskPasswordsBuildWrapper']) {
+                    withCredentials([usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                         build job: "${PSNAME}_DEPLOY", wait: true, parameters:
+                            [[$class: 'StringParameterValue', name: 'BUILD_NUM', value: "${BUILD_NUM}"],
+                             [$class: 'StringParameterValue', name: 'BUILD_NAME', value: "${BUILD_NAME}"],
+                             [$class: 'StringParameterValue', name: 'BUILD_TYPE', value: "${BUILD_TYPE}"],
+                             [$class: 'BooleanParameterValue', name: 'DEPLOY_RELEASE_VERSION', value: "${CREATE_RELEASE_VERSION}"],
+                             [$class: 'StringParameterValue', name: 'CF_USN', value: "${CF_USN}"],
+                             [$class: 'com.michelin.cio.hudson.plugins.passwordparam.PasswordParameterValue', name: 'CF_PWD', value: "${CF_PWD}"],
+                             [$class: 'StringParameterValue', name: 'PROXY_URL', value: "${env.http_proxy}"],
+                             [$class: 'StringParameterValue', name: 'PSNAME', value: "${PSNAME}"], 
+                             [$class: 'StringParameterValue', name: 'BRANCH', value: "${BRANCH}"],
+                             [$class: 'StringParameterValue', name: 'CF_ORG', value: "${HSDP_CI_ORG}"],
+                             [$class: 'StringParameterValue', name: 'CF_SPACE', value: "${PSNAME}"],
+                             [$class: 'StringParameterValue', name: 'VAULT_URL', value: "${env.VAULT_URL}"],
+                             [$class: 'StringParameterValue', name: 'CI', value: "${env.CI}"],
+                             [$class: 'StringParameterValue', name: 'PYTHON_VERSION', value: "2"],
+                             [$class: 'StringParameterValue', name: 'ARTIFACTORY_IP', value: "${env.ARTIFACTORY_IP}"]]
+                    }
+                }
+            }
+        }
+
+        stage('SMOKETEST') {
+            when {
+                expression { BUILD_TYPE ==~ /(DAY)/ && params.SMOKETEST == true }
+            }
+            steps {
+                InitialiseBuild()
+                withCredentials([usernamePassword(credentialsId: 'ENG_CI_CREDENTIALS', passwordVariable: 'ENG_CI_PWD', usernameVariable: 'ENG_CI_USER')]) {
+                      sh " echo SMOKETEST, Integration of SMOKE test is Program team decision "
+                }
+            }
+        }
+
+        stage('DYNAMICTEST') {
+        agent { label 'hsdp_ci_ciforci' }
+            when {
+                expression { BUILD_TYPE ==~ /(DAY)/ && params.DYNAMICTEST == true }
+            }
+            steps {
+            InitialiseBuild()
+			    checkout([$class: 'GitSCM', branches: [[name: "*/${env.RoboCI_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'ROBOCI']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'TFS_CRED', url: "https://github.com/philips-internal/HSP_PS_RoboCI.git"]]])
+                withCredentials([usernamePassword(credentialsId: 'ENG_CI_CREDENTIALS', passwordVariable: 'ENG_CI_PWD', usernameVariable: 'ENG_CI_USER'), usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                    script {
+                        try {
+                            sh " chmod -R 755 ${WORKSPACE}"
+                            sh " ${WORKSPACE}/ROBOCI/CICD/Scripts/Ec2_Trigger.sh DYNAMICTEST "
+                        } finally {
+                            publishHTML (target: [allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'RESULT', reportFiles: "REG_${JOB_NAME}_DYNAMICTEST.html", reportName: "REG${JOB_NAME}_DYNAMICTEST"])
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'RESULT/*.json'
+							archiveArtifacts allowEmptyArchive: true, artifacts: 'RESULT/*.html'
+                        }
+                    }
+                }
+            }
+        }         
+
+        stage('FULLTEST PY2') {
+            when {
+                expression { BUILD_TYPE ==~ /(NIGHTLY|RELEASE|UPDATE)/ && params.FULLTEST == true }
+            }
+            steps {
+                InitialiseBuild()
+                checkout([$class: 'GitSCM', branches: [[name: "*/${env.RoboCI_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'ROBOCI']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'TFS_CRED', url: "https://github.com/philips-internal/HSP_PS_RoboCI.git"]]])
+                withCredentials([usernamePassword(credentialsId: 'ENG_CI_CREDENTIALS', passwordVariable: 'ENG_CI_PWD', usernameVariable: 'ENG_CI_USER'), usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                    script {
+                        try {
+                            sh " chmod -R 755 ${WORKSPACE}"
+                            sh " ${WORKSPACE}/ROBOCI/CICD/Scripts/Ec2_Trigger.sh FULLTEST "
+                        } finally {
+                            publishHTML (target: [allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'RESULT', reportFiles: "REG_${JOB_NAME}_FULLTEST.html", reportName: "REG${JOB_NAME}_FULLTEST_PY2"])
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'RESULT/*.json'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage ('DEPLOY PY3') {
+            when {
+                expression { BUILD_TYPE ==~ /(DAY|NIGHTLY|RELEASE|UPDATE)/ && params.DEPLOY == true }
+            }
+            steps {
+                InitialiseBuild()
+                wrap([$class: 'MaskPasswordsBuildWrapper']) {
+                    withCredentials([usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                         build job: "${PSNAME}_DEPLOY", wait: true, parameters:
+                            [[$class: 'StringParameterValue', name: 'BUILD_NUM', value: "${BUILD_NUM}"],
+                             [$class: 'StringParameterValue', name: 'BUILD_NAME', value: "${BUILD_NAME}"],
+                             [$class: 'StringParameterValue', name: 'BUILD_TYPE', value: "${BUILD_TYPE}"],
+                             [$class: 'StringParameterValue', name: 'CF_USN', value: "${CF_USN}"],
+                             [$class: 'com.michelin.cio.hudson.plugins.passwordparam.PasswordParameterValue', name: 'CF_PWD', value: "${CF_PWD}"],
+                             [$class: 'StringParameterValue', name: 'PROXY_URL', value: "${env.http_proxy}"],
+                             [$class: 'StringParameterValue', name: 'PSNAME', value: "${PSNAME}"],
+                             [$class: 'StringParameterValue', name: 'BRANCH', value: "${BRANCH}"],
+                             [$class: 'StringParameterValue', name: 'CF_ORG', value: "${HSDP_CI_ORG}"],
+                             [$class: 'StringParameterValue', name: 'CF_SPACE', value: "${PSNAME}"],
+                             [$class: 'StringParameterValue', name: 'VAULT_URL', value: "${env.VAULT_URL}"],
+                             [$class: 'StringParameterValue', name: 'CI', value: "${env.CI}"],
+                             [$class: 'StringParameterValue', name: 'PYTHON_VERSION', value: "3"],
+                             [$class: 'StringParameterValue', name: 'ARTIFACTORY_IP', value: "${env.ARTIFACTORY_IP}"]]
+                    }
+                }
+            }
+        }
+
+        stage('FULLTEST PY3') {
+            when {
+                expression { BUILD_TYPE ==~ /(NIGHTLY|RELEASE|UPDATE)/ && params.FULLTEST == true }
+            }
+            steps {
+                InitialiseBuild()
+                checkout([$class: 'GitSCM', branches: [[name: "*/${env.RoboCI_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'ROBOCI']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'TFS_CRED', url: "https://github.com/philips-internal/HSP_PS_RoboCI.git"]]])
+                withCredentials([usernamePassword(credentialsId: 'ENG_CI_CREDENTIALS', passwordVariable: 'ENG_CI_PWD', usernameVariable: 'ENG_CI_USER'), usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                    script {
+                        try {
+                            sh " chmod -R 755 ${WORKSPACE}"
+                            sh " ${WORKSPACE}/ROBOCI/CICD/Scripts/Ec2_Trigger.sh FULLTEST "
+                        } finally {
+                            publishHTML (target: [allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'RESULT', reportFiles: "REG_${JOB_NAME}_FULLTEST.html", reportName: "REG${JOB_NAME}_FULLTEST"])
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'RESULT/*.json'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('PERFORMANCETEST') {
+            when {
+                expression { BUILD_TYPE ==~ /(NIGHTLY|RELEASE|UPDATE)/ && params.PERFORMTEST == true }
+            }
+            steps {
+                InitialiseBuild()
+                checkout([$class: 'GitSCM', branches: [[name: "*/${env.RoboCI_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'ROBOCI']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'TFS_CRED', url: "https://github.com/philips-internal/HSP_PS_RoboCI.git"]]])
+                withCredentials([usernamePassword(credentialsId: 'ENG_CI_CREDENTIALS', passwordVariable: 'ENG_CI_PWD', usernameVariable: 'ENG_CI_USER'), usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                    script {
+                        try {
+                            sh " chmod -R 755 ${WORKSPACE}"
+                            sh " ${WORKSPACE}/ROBOCI/CICD/Scripts/Ec2_Trigger.sh PERFORMANCETEST "
+                        } finally {
+                            publishHTML (target: [allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'RESULT', reportFiles: "REG_${JOB_NAME}_PERFORMANCETEST.html", reportName: "REG${JOB_NAME}_PERFORMANCETEST"])
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'RESULT/*.json'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('SECURITYTEST') {
+            when {
+                expression { BUILD_TYPE ==~ /(NIGHTLY|RELEASE|UPDATE)/ && params.SECURITYTEST == true }
+            }
+            steps {
+                InitialiseBuild()
+                checkout([$class: 'GitSCM', branches: [[name: "*/${env.RoboCI_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'ROBOCI']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'TFS_CRED', url: "https://github.com/philips-internal/HSP_PS_RoboCI.git"]]])
+                withCredentials([usernamePassword(credentialsId: 'ENG_CI_CREDENTIALS', passwordVariable: 'ENG_CI_PWD', usernameVariable: 'ENG_CI_USER'), usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                    script {
+                        try {
+                            sh " chmod -R 755 ${WORKSPACE}"
+                            sh " ${WORKSPACE}/ROBOCI/CICD/Scripts/Ec2_Trigger.sh SECURITYTEST "
+                        } finally {
+                            publishHTML (target: [allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'RESULT', reportFiles: "REG_${JOB_NAME}_SECURITYTEST.html", reportName: "REG${JOB_NAME}_SECURITYTEST"])
+                            archiveArtifacts allowEmptyArchive: true, artifacts: 'RESULT/*.json'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('CFAPPDELETE') {
+            when {
+                expression { BUILD_TYPE ==~ /(NIGHTLY|RELEASE|UPDATE)/ && params.CFAPPDELETE == true }
+            }
+            steps {
+                InitialiseBuild()
+                checkout([$class: 'GitSCM', branches: [[name: "*/${env.RoboCI_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'LocalBranch', localBranch: "**"], [$class: 'CleanBeforeCheckout'], [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', trackingSubmodules: false], [$class: 'CloneOption', depth: 0, noTags: true, reference: '', shallow: false, timeout: 360], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'ROBOCI']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'TFS_CRED', url: "https://github.com/philips-internal/HSP_PS_RoboCI.git"]]])
+                withCredentials([usernamePassword(credentialsId: 'ENG_CI_CF_CREDENTIALS', passwordVariable: 'CF_PWD', usernameVariable: 'CF_USN')]) {
+                    script {
+                        sh '''
+                            chmod -R 755 ${WORKSPACE}
+                            ${WORKSPACE}/CICD/cfappdelete.sh
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    post {
+        failure{
+            emailext (mimeType: 'text/html', body: '<p></p><br><br/>$PROJECT_DEFAULT_CONTENT', subject: "'${env.BUILD_NUM}' Failed", to: "${env.EMAIL_GROUP}")
+        }
+        success{
+            script {
+                emailext (mimeType: 'text/html', body: '<p><b>BUILD BINARY PATH : <a href="${FN_CONFIG_SHAREDPATH}\\${BUILD_NAME}\\${BUILD_NUM}">Open Build Drop Location</a></b></p><br><br/>$PROJECT_DEFAULT_CONTENT', subject: "'${env.BUILD_NUM}' Succeeded", to: "${env.EMAIL_GROUP}")
+                if (env.BUILD_TYPE ==~ /(RELEASE|UPDATE)/) {
+                    build job: 'GLOBAL_BUILDNUM', wait: true, parameters: [[$class: 'StringParameterValue', name: 'BUILD_NUM', value: "${BUILD_NAME}/${BUILD_NUM}"]]
+                }
+            }
+        }
+    }
+}
+
+def InitialiseBuild() {
+    committerName = sh(script: "git show -s --format='%an' HEAD", returnStdout: true)
+    currentBuild.displayName = "${params.BUILD_NUM}"
+    currentBuild.description = "Submitter: " + committerName + ";Node: ${env.NODE_NAME}"
+    echo currentBuild.description
+    echo currentBuild.displayName
+}

@@ -1,0 +1,106 @@
+#!/usr/bin/env groovy
+
+pipeline {
+    parameters {
+        string(name: 'BUILD_NUM', defaultValue: '', description: 'Only required for CICD')
+        string(name: 'BUILD_NAME', defaultValue: '', description: 'Only required for CICD')
+        string(name: 'PYTHON_VERSION', defaultValue: '', description: 'Only required for CICD, Version 2 or 3')
+        string(name: 'BUILD_TYPE', defaultValue: 'DD', description: 'DD - Direct Deployment')
+        string(name: 'CF_USN', defaultValue: '', description: 'Enter CF_USERNAME')
+        password(name: 'CF_PWD', defaultValue: '', description: 'Enter CF_USER_PASSWORD')
+        string(name: 'PROXY_URL', defaultValue: '', description: 'Enter Proxy URL When Jenkins Server in PIC N/W')
+        string(name: 'PSNAME', defaultValue: '', description: 'Platform Service name')
+        string(name: 'BRANCH', defaultValue: 'master', description: 'Git branch')
+        string(name: 'CF_ORG', defaultValue: '', description: 'CF ORG')
+        string(name: 'CF_SPACE', defaultValue: '', description: 'CF SPACE')
+        string(name: 'VAULT_URL', defaultValue: 'https://vproxy.cloud.pcftest.com', description: 'Vault URL')
+        string(name: 'DOCKER_REGISTRY_URL', defaultValue: 'https://docker.na1.hsdp.io/eng-autodeploy_system_team/hsdp_ci_devopslib')
+        string(name: 'DOCKER_IMAGE', defaultValue: 'docker.na1.hsdp.io/eng-autodeploy_system_team/hsdp_ci_devopslib:v4', description: 'HSDP DevOpsLib Docker Image and Version')
+        string(name: 'DOCKER_REGISTRY_CREDENTIAL_ID', defaultValue: 'HSDP_DOCKER_REGISTRY_AUTH')
+        string(name: 'ARTIFACTORY_IP', defaultValue: '52.16.210.77', description: 'PGN or Public Artifacory IP Address, default Public IP Address')
+        booleanParam(name: 'DEPLOY_RELEASE_VERSION', defaultValue: true, description: '')
+        booleanParam(name: 'DEPLOY', defaultValue: true, description: '')
+        booleanParam(name: 'CI', defaultValue: false, description: 'Flag to check for CICD')
+    }
+
+    environment {
+        BUILD_TYPE          = "${params.BUILD_TYPE}"
+        CF_USER             = "${params.CF_USN}"
+        CF_PASSWORD         = "${params.CF_PWD}"
+        VAULT_URL           = "${params.VAULT_URL}"
+        CF_URL              = "${params.CF_URL}"
+        CICD_ENV            = "${params.CI}"
+        PROXY_URL           = "${params.PROXY_URL}"
+        ARTIFACTORY_IP      = "${params.ARTIFACTORY_IP}"
+        TA_EMAIL            = "ravindra.kareti@philips.com,rob.schreurs@philips.com"
+    }
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    agent {
+        label 'docker_host'
+    }
+    stages {
+
+        stage ('DEPLOY') {
+            when {
+                expression { params.DEPLOY == true }
+            }
+            agent {
+                docker {
+                    label 'docker_host'
+                    image "${params.DOCKER_IMAGE}"
+                    registryUrl "${params.DOCKER_REGISTRY_URL}"
+                    registryCredentialsId "${params.DOCKER_REGISTRY_CREDENTIAL_ID}"
+                    args '--add-host artifactory-ehv.ta.philips.com:$ARTIFACTORY_IP -v /home/jenkins/TFS_SHARE:/home/jenkins/TFS_CI_SHARE -e CICD_ENV=$CI -e BUILD_TYPE=$BUILD_TYPE -e VAULT_URL=$VAULT_URL -e CF_URL=$CF_URL -e CF_USN=$CF_USN -e CF_PWD=$CF_PWD -e PROXY_URL=$PROXY_URL -e DEPLOY_RELEASE_VERSION=$DEPLOY_RELEASE_VERSION'
+                 }
+            }
+            steps {
+                script {
+                    currentBuild.displayName = "${BUILD_NUM}"
+                    currentBuild.description = ""
+                    withCredentials([
+                        usernamePassword(credentialsId: 'ART_EHV_CRED', passwordVariable: 'ART_PWD', usernameVariable: 'ART_USER'),
+                        file(credentialsId: 'HSP_ARTIFACTORY_SCT_FILE_CERTIFICATE_PEM', variable: 'HSP_ARTIFACTORY_SCT_FILE_CERTIFICATE_PEM')]) {
+                        sh '''
+                            chmod -R 755 ${WORKSPACE}
+                            ${WORKSPACE}/CICD/deploy.sh
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    post {
+         always {
+            script {
+                def TA_EMAIL_BODY = "'${env.PROJECT_DEFAULT_CONTENT}'"
+                if (env.PROJECT_DEFAULT_CONTENT==null) {
+                    TA_EMAIL_BODY = '''
+                        <span style="font-family:Arial;">
+                        <b>Project:</b> $PROJECT_NAME </br>
+                        <b>Job:</b> $JOB_NAME </br>
+                        <b>Build:</b> #$BUILD_NUM </br>
+                        <b>Status:</b> $BUILD_STATUS </br></br>
+                        <hr>
+                        <b>Build parameters</b></br>
+                        <b>Branch:</b> $BRANCH </br>
+                        <b>Build User:</b> $CF_USERNAME </br></br>
+
+                        <p>Check console output at &QUOT;<a href='$BUILD_URL'>$JOB_NAME [$BUILD_NUMBER]</a>&QUOT;</p>
+                        </span>
+                    '''
+                }
+                emailext (
+                    mimeType: 'text/html',
+                    recipientProviders: [requestor()],
+                    to: "${TA_EMAIL}",
+                    subject: '$PROJECT_NAME - $BUILD_TYPE - #$BUILD_NUM - $BUILD_STATUS!',
+                    attachLog: true,
+                    body: TA_EMAIL_BODY
+                )
+            }
+        }
+    }
+}

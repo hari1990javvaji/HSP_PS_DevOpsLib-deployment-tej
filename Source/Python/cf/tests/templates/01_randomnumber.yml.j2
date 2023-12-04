@@ -1,0 +1,15 @@
+applications:
+- name: {{ apps.randomnumber.app_attributes.name }}-{{ common_configurations.version|replace('.','') }}-{{ common_configurations.blue_green }}
+  routes:
+{% if common_configurations.blue_green == 'green' %}
+    - route: {{ apps.randomnumber.app_attributes.host }}-{{ common_configurations.version|replace('.','') }}-{{ common_configurations.blue_green }}.{{ common_configurations.domain }}
+{% else %}
+    - route: {{ apps.randomnumber.app_attributes.host }}-{{ common_configurations.version|replace('.','') }}.{{ common_configurations.domain }}
+{%endif %}
+  instances: {{ apps.randomnumber.app_attributes.instances }}
+  memory: {{ apps.randomnumber.app_attributes.memory }}
+  timeout: {{ apps.randomnumber.app_attributes.timeout }}
+  path: ../binary/random-number-generator-1.0.0.0-{{ common_configurations.stage }}.jar
+  stack: cflinuxfs3
+  buildpacks:
+  - {{ common_configurations.default_buildpack }}

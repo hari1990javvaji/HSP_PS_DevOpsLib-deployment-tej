@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Regression status report</title>
+    <style>
+        div {
+            width: 100%;
+            background-color: #000080;
+            color: #00FFFF;
+            font-weight: 700;
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0px 0px 0px;
+        }
+
+        table {
+            border: 1px solid black;
+            text-align: center;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid black;
+            text-align: center;
+            padding: 10px;
+        }
+
+        table th {
+            background-color: #99CCFF;
+            color: black;
+        }
+
+        table td.passed {
+            background-color: greenyellow;
+        }
+
+        table td.failed {
+            background-color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <div>TFS QUERY SUMMARY</div>
+    <table id="TFS_query_summary">
+        <thead>
+            <tr>
+                {%for q_list in query_list%}
+                <th>{{q_list}}</th>
+                {%endfor%}
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                {%for query_k,query_v in query_file.iteritems()%}
+                <td>{{query_v}}</td>
+                {%endfor%}
+            </tr>
+        </tbody>
+    </table>
+
+    <div>TEST EXECUTION SUMMARY</div>
+    <table id="test_execution_summary">
+        <thead>
+            <tr>
+                <th>Executed Test Cases</th>
+                <th>Passed</th>
+                <th>Failed</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{count_p+count_f}}</td>
+                <td>{{count_p}}</td>
+                <td>{{count_f}}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div>TEST EXECUTION STATUS</div>
+    <table id="test_execution_status">
+        <thead>
+            <tr>
+                {%for m_items in m_list%}
+                <th>{{m_items}}</th>
+                {%endfor%}
+            </tr>
+        </thead>
+        <tbody>
+            {%for items in data%}
+            {%for k,v in items.iteritems()%}
+            {%if  k == "testcases"%}
+            {%for i_dict in v%}
+            <tr>
+                {%for key, val in i_dict.iteritems() if loop.index%}
+                {%if val =="Passed"%}
+                <td class="passed">{{val}}</td>
+                {%elif val == "Failed"%}
+                <td class="failed">{{val}}</td>
+                {%elif "https://" in val%}
+                <td><a href="{{val}}" target="_blank" title="Ctrl+Click or Right click-->Open in new tab/window">Log</a>
+                </td>
+                {%else%}
+                <td>{{val}}</td>
+                {%endif%}
+                {%endfor%}
+            </tr>
+            {%endfor%}
+            {%endif%}
+            {%endfor%}
+            {%endfor%}
+        </tbody>
+    </table>
+</body>
+
+</html>

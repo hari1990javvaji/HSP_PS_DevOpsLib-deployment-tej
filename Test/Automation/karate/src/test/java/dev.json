@@ -1,0 +1,6 @@
+{
+	"randomNum_host":"https://random-number-generator.cloud.pcftest.com",
+	"greet_host": "https://greet-user.cloud.pcftest.com",
+	"enable_proxy": true,
+	"proxy": "http://apac.zscaler.philips.com:9480"
+}

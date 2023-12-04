@@ -1,0 +1,44 @@
+pipeline {
+    environment {
+        BUILD_TYPE       = "DEPLOYSCAN"
+        PLATFORM_NAME    = "DevOpsLib"
+		SONAR_BRANCH     = "DEPLOY_NIGHTLY"
+        BUILD_NUM        = "${JOB_NAME}_${sh(returnStdout: true, script: "date +'%Y%m%d%H%M'")}"
+		BITBUCKET_REPO   = "https://bitbucket.hsdp.io/scm/dep/DevOpsLib"
+		BITBUCKET_BRANCH = "master"
+    }
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    agent { label 'hsdp_ci_bdp' }
+    stages {
+	        stage ('CHECKOUT') {
+            steps {
+               script{
+                    currentBuild.displayName = "${BUILD_NUM}"
+                    currentBuild.description = ""
+                }
+			   checkout([$class : 'GitSCM', branches: [[name: "*/${env.BITBUCKET_BRANCH}"]], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'CleanBeforeCheckout'],[$class: 'GitLFSPull'],[$class: 'RelativeTargetDirectory', relativeTargetDir: 'BitbucketRepo']], submoduleCfg : [], userRemoteConfigs: [[credentialsId: '998ab48d-829e-46aa-9bce-a5477c386d58', url : "${env.BITBUCKET_REPO}"]]])
+                 }
+        }
+            stage ('DEPLOYSCAN') {
+            steps {
+                                sh '''
+								cd BitbucketRepo
+								sonar-scanner -Dsonar.projectKey=${PLATFORM_NAME}:${SONAR_BRANCH} \
+                                -Dsonar.projectName=${PLATFORM_NAME}_${SONAR_BRANCH} \
+                                -Dsonar.sources=. \
+								-Dsonar.projectVersion=1.0 \
+								-Dsonar.language=py \
+								-Dsonar.host.url=${HSDP_SONARQUBE_URL_NEW} 
+                                  '''
+                 }
+        }
+	}
+    post {
+           always {
+					emailext (mimeType: 'text/html', body: "'${env.PROJECT_DEFAULT_CONTENT}'", subject: '$JOB_NAME - ${BUILD_STATUS}!', to: "${TA_EMAIL}")
+                }
+    }
+}

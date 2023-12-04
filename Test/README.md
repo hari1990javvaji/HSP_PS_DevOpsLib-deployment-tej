@@ -1,0 +1,1 @@
+This Folder Contains Automation Scripts to verify the micro services. This includes Functional, Non Functional(Performance and Security) Test Automation Scripts.

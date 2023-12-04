@@ -1,0 +1,14 @@
+name: GatedBuildCheck
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+    - master
+    - '*RELEASE*'
+    - '*UPDATE*'
+
+jobs:
+  GatedBuildCheck:
+    uses: philips-internal/HSP_PS_cicd_templates/.github/workflows/gated-build-check-template.yml@master
+    secrets: inherit

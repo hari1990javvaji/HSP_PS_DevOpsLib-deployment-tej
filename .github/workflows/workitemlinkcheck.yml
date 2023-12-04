@@ -1,0 +1,17 @@
+name: WorkItemLinkcheck
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches:
+    - master
+    - '*RELEASE*'
+    - '*UPDATE*'    
+  #issue_comment:
+    #types: [created]      
+
+jobs:
+ WorkItemLinkcheck-PullRequest:
+    if: github.event.pull_request
+    uses: philips-internal/HSP_PS_cicd_templates/.github/workflows/workitem-link-check-template.yml@master
+    secrets: inherit

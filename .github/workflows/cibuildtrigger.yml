@@ -1,0 +1,16 @@
+name: CI-BuildTrigger
+
+on:
+  push:
+    branches:
+    - master
+    - '*RELEASE*'
+    - '*UPDATE*'
+
+jobs:
+  CI-BuildTrigger:
+    uses: philips-internal/HSP_PS_cicd_templates/.github/workflows/ci-build-trigger-template.yml@master
+    secrets: inherit
+    with:
+          BRANCH: ${{ github.ref }}
+          HEAD_SHA: ${{ github.sha }}

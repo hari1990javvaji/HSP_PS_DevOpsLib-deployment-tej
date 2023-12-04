@@ -1,0 +1,48 @@
+common_configurations:
+#Version should be 1.0.0.0
+  version: "1.0.0.0"
+#Stage should be RELEASE
+  stage: SNAPSHOT
+#Domain to be configured
+  domain: cloud.pcftest.com
+#blue green flag. Should be blue
+  blue_green: blue
+#Default buidpack should be java_buildpack
+  default_buildpack: java_buildpack
+#Default buidpack should be ui
+  default_buildpack_ui: https://github.com/cloudfoundry/staticfile-buildpack.git
+#Stack should be cflinuxfs3
+  stack: cflinuxfs3
+#All app configurations can be found below
+apps:
+  greetuser:
+    app_attributes:
+# Provide the application name
+      name: greetuser-devops-cicd
+# Provide the application host
+      host: greetuser-devops-cicd
+# App instances
+      instances: 1
+# App memory
+      memory: 1GB
+#App timeout
+      timeout: 180
+  randomnumber:
+    app_attributes:
+      # Provide the application name
+      name: randomnumber-devops-cicd
+      # Provide the application host
+      host: randomnumber-devops-cicd
+      # App instances
+      instances: 1
+      # App memory
+      memory: 1GB
+      #App timeout
+      timeout: 180
+services:   
+  pg_db_service:
+    service_name: pg-service-cicd
+    service_type: managed
+    broker_name: hsdp-rds
+    plan_name: postgres-medium-dev
+    optional_params: ~

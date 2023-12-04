@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greet-app
+  labels:
+    app: eks-greet-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: eks-greet-st-app
+  template:
+    metadata:
+      labels:
+        app: eks-greet-st-app
+    spec:
+      containers:
+        - name: greet-app
+          image: docker.na1.hsdp.io/devopslib/greetuser:1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: greet-web-svc
+      imagePullSecrets:
+      - name: regcred

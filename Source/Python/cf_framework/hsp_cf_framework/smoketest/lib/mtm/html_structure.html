@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+
+table.status{
+    border: 1px solid black;
+    border-collapse: collapse;
+    border-spacing:10px 50px;}
+
+table.one, th, td {
+     border: 1px solid black;
+     white-space: wrap;
+     text-align:center;
+}
+table.two, th, td {
+      border: 1px solid black;
+     white-space: wrap;
+     text-align:center;
+
+}
+th, td {
+    padding: 15px;
+}
+
+table.one th        {
+    background-color: #99CCFF;
+    color: black;
+}
+</style>
+</head>
+<br>
+<br>
+<table class = "status" style = "width:100%">
+  <tbody>
+    <tr>
+        <td bgcolor="#000080">
+            <font color="#00FFFF">
+                <b>TFS QUERY SUMMARY</b>
+            </font>
+        </td>
+    </tr>
+  </tbody>
+</table>
+<table class = "one" style="width:100%">
+
+
+                     <tr>
+                    {%for q_list in query_list%}
+                        <th>{{q_list}}</th>
+                    {%endfor%}
+                    </tr>
+
+                   <tr>
+                   {%for query_k,query_v in query_file.iteritems()%}
+                    <td>{{query_v}}</td>
+                    {%endfor%}
+                    </tr>
+
+</table>
+</br>
+<table class = "status" style = "width:100%">
+  <tbody>
+    <tr>
+        <td bgcolor="#000080">
+            <font color="#00FFFF">
+                <b>TEST EXECUTION SUMMARY</b>
+            </font>
+        </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class = "one" style="width:100%">
+    <tbody>
+    <tr>
+        <th>Executed Test Cases</th>
+        <th>Passed</th>
+        <th>Failed</th>
+    </tr>
+    <tr>
+        <td>{{count_p+count_f}}</td>
+        <td>{{count_p}}</td>
+        <td>{{count_f}}</td>
+    </tr>
+    </tr>
+    </tbody>
+</table>
+</br>
+<table class = "status" style = "width:100%">
+  <tbody>
+    <tr>
+        <td bgcolor="#000080">
+            <font color="#00FFFF">
+                <b>TEST EXECUTION STATUS</b>
+            </font>
+        </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class = "two" style = "width:100%">
+
+            <thead>
+                    <tr >
+
+                             {%for m_items in m_list%}
+                                <th bgcolor="#2EFEF7">{{m_items}}</th>
+                             {%endfor%}
+                   </tr>
+
+            </thead>
+
+    <tbody>
+
+    {%for items in data%}
+        {%for k,v in items.iteritems()%}
+            {%if  k == "testcases"%}
+                {%for i_dict in v%}
+                <tr>
+                    {%for key, val in i_dict.iteritems() if loop.index%}
+                        {%if val =="Passed"%}
+                            <td bgcolor="#00FF00">{{val}}</td>
+                        {%elif val == "Failed"%}
+                            <td bgcolor="#FF0000">{{val}}</td>
+                        {%elif "https" in val%}	
+                            <td><a href = "{{val}}" target="_blank" title="Ctrl+Click or Right click-->Open in new tab/window">Log</a></td>								
+                        {%else%}
+                            <td>{{val}}</td>
+                        {%endif%}
+                    {%endfor%}
+                </tr>
+                {%endfor%}
+            {%endif%}
+        {%endfor%}
+    {%endfor%}
+    </tbody>
+</table>
+</br>
+
+</body>
+</html>

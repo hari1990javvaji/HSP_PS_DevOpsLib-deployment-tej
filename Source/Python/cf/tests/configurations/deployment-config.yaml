@@ -1,0 +1,53 @@
+common_configurations:
+#Version should be 1.0.0.0
+  version: "1.0.0.0"
+#Stage should be RELEASE
+  stage: SNAPSHOT
+#Domain to be configured
+  domain: cloud.pcftest.com
+#blue green flag. Should be blue
+  blue_green: blue
+#Default buidpack should be java_buildpack
+  default_buildpack: java_buildpack
+#Default buidpack should be ui
+  default_buildpack_ui: https://github.com/cloudfoundry/staticfile-buildpack.git
+#Stack should be cflinuxfs3
+  stack: cflinuxfs3
+#All app configurations can be found below
+apps:
+  greetuser:
+    app_attributes:
+# Provide the application name for backend
+      name: greetuser-ut
+# Provide the application host
+      host: greetuser-ut
+# App instances
+      instances: 1
+# App memory
+      memory: 1GB
+#App timeout
+      timeout: 180
+  randomnumber:
+    app_attributes:
+# Provide the application name
+      name: randomnumber-ut
+# Provide the application host
+      host: randomnumber-ut
+# App instances
+      instances: 1
+# App memory
+      memory: 1GB
+#App timeout
+      timeout: 180
+services:
+  vault-service:
+    service_name: vault-test-1
+    service_type: managed
+    broker_name: hsdp-vault
+    plan_name: vault-us-east-1
+    optional_params: ~
+
+org_name: ENG-CICD
+space_name: DevOpsLib
+api_host: api.cloud.pcftest.com
+login_host: login.cloud.pcftest.com

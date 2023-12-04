@@ -1,0 +1,1 @@
+Generic Request body/payload which will be called as part of feature file.

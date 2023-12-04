@@ -1,0 +1,15 @@
+applications:
+- name: {{ apps.greetuser.app_attributes.name }}-{{ common_configurations.version|replace('.','') }}-{{ common_configurations.blue_green }}
+  routes:
+{% if common_configurations.blue_green == 'green' %}
+    - route: {{ apps.greetuser.app_attributes.host }}-{{ common_configurations.version|replace('.','') }}-{{ common_configurations.blue_green }}.{{ common_configurations.domain }}
+{% else %}
+    - route: {{ apps.greetuser.app_attributes.host }}-{{ common_configurations.version|replace('.','') }}.{{ common_configurations.domain }}
+{%endif %}
+  instances: {{ apps.greetuser.app_attributes.instances }}
+  memory: {{ apps.greetuser.app_attributes.memory }}
+  timeout: {{ apps.greetuser.app_attributes.timeout }}
+  path: ../binary/greet-user-1.0.0.0-{{ common_configurations.stage }}.jar
+  stack: cflinuxfs3
+  buildpacks:
+  - {{ common_configurations.default_buildpack }}

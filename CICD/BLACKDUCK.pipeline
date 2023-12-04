@@ -1,0 +1,46 @@
+pipeline {
+    environment {
+        BUILD_TYPE         = "BLACKDUCK"
+        CICD_ENV           = "true"
+        SERVICE_NAME       = "HSDP_DP_DEVOPSLIB"
+        PROJECT_NAME       = "HSDP_DP_DEVOPSLIB"
+        BUILD_NUM          = "${JOB_NAME}_${sh(returnStdout: true, script: "date +'%Y%m%d%H%M'").trim()}"
+        EMAIL_RECIPIENTS   = "${TA_MAIL}"      
+    }
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    agent { label 'hsdp_ci_foundation_build_fortify_blackduck' }
+    stages {
+        stage ('BUILD') {
+            steps {
+                script{
+                    currentBuild.displayName = "${BUILD_NUM}"
+                    currentBuild.description = ""
+                }
+				withCredentials([string(credentialsId: 'BLACKDUCK_ACCESS_TOKEN', variable: 'BLACKDUCK_ACCESS_TOKEN')]) {
+					sh " chmod -R 755 ${WORKSPACE}/CICD "
+					sh " ${WORKSPACE}/CICD/build.sh $BUILD_TYPE "
+					sh " java -jar ${BLACKDUCK_SYNOPSYS_PATH} --detect.project.name=${PROJECT_NAME} \
+															  --detect.project.version.name=${SERVICE_NAME} \
+															  --blackduck.url=${BLACKDUCK_URL} \
+															  --detect.source.path=${WORKSPACE}/Source/ \
+															  --blackduck.api.token=${BLACKDUCK_ACCESS_TOKEN} \
+															  --detect.bom.aggregate.name=${PROJECT_NAME}_${SERVICE_NAME} \
+															  --blackduck.trust.cert=true \
+															  --detect.detector.search.depth=0 \
+															  --detect.detector.search.exclusion.defaults=false "               
+				}
+            }
+        }
+    }
+    post {
+        failure{
+            emailext (mimeType: 'text/html', body: "'${env.PROJECT_DEFAULT_CONTENT}'", subject: "'${env.BUILD_TYPE} ${env.BUILD_NUM}' Failed", to: "${env.EMAIL_RECIPIENTS}")
+        }
+        success{
+            emailext (mimeType: 'text/html', body: "'${env.PROJECT_DEFAULT_CONTENT}'", subject: "'${env.BUILD_TYPE} ${env.BUILD_NUM}' Succeeded", to: "${env.EMAIL_RECIPIENTS}")
+        }
+    }
+}

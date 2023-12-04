@@ -1,0 +1,14 @@
+hvac
+cloudfoundry-client
+Jinja2
+requests
+urllib3
+PyYAML
+future
+mock
+jmespath
+datetime
+pytz
+jsonpath_rw_ext
+pathlib
+tabulate

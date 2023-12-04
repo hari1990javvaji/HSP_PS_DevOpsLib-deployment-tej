@@ -1,0 +1,5 @@
+api,API End Point,sla,tolerance,targetTPS
+399947_GreetUser_1,hello (GET),4,20,150
+399948_GreetUser_1,generate (GET),4,20,150
+399949_RandomNum_1,hello (GET),4,20,150
+399950_RandomNum_1,generate (GET),4,20,150

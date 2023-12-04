@@ -1,0 +1,2 @@
+include readme.md
+recursive-include hsp_cf_framework *.json *.yaml *.yml.j2 *.txt *.csv *.bat *.html *.properties *.md
