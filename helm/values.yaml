@@ -4,10 +4,10 @@
 greetapp:
   replicaCount: 1
   image:
-    repository: docker.na1.hsdp.io/devopslib
+    repository: hjavvaji/devopslib
     tag: "1"
     pullPolicy: IfNotPresent
-    name: docker.na1.hsdp.io/devopslib/greetuser:1
+    name: hjavvaji/devopslib:1
   service:
     type: NodePort
     port: 8080
@@ -21,7 +21,7 @@ greetapp:
 
 
 imageCredentials:
-  registry: docker.na1.hsdp.io
+  registry: hub.docker.com
   username: hjavvaji
-  password: hariK@0622
+  password: kishorehari
   email: hkishore42@gmail.com
