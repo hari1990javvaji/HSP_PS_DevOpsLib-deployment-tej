@@ -87,7 +87,7 @@ jobs:
       - name: Image Name update
         uses: mikefarah/yq@master
         with:
-          cmd: yq eval '.greetapp.image.name = "${{secrets.DOCKERHUB_USERNAME}}/flask-mongo-crud"' -i ./helm/values.yaml
+          cmd: yq eval '.greetapp.image.name = "${{secrets.DOCKERHUB_USERNAME}}/greetapp"' -i ./helm/values.yaml
       - name: Docker username creds update
         uses: mikefarah/yq@master
         with:
